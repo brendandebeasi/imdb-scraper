@@ -271,7 +271,8 @@ class Imdb
             'locale'        => 'en',
             'seasons'       => false,
             'credits'       => false,
-            'guzzleLogFile' => null
+            'guzzleLogFile' => null,
+            'proxy'         => null
         ];
 
         //  Merge any user options with the default ones

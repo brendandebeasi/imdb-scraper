@@ -182,6 +182,11 @@ class Dom
             'verify' => false,
         ];
 
+        // Add proxy configuration if provided
+        if (isset($options['proxy']) && $options['proxy'] !== null) {
+            $clientOpts['proxy'] = $options['proxy'];
+        }
+
         if (isset($options['guzzleLogFile']) && $options['guzzleLogFile'] !== null) {
             // if the file does not exist, try and create it
             if (!file_exists($options['guzzleLogFile'])) {
