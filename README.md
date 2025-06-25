@@ -52,6 +52,7 @@ Key features include:
 - [Advanced Features](#advanced-features)
   - [Caching](#caching)
   - [Locale](#locale)
+  - [Proxy Configuration](#proxy-configuration)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -157,6 +158,7 @@ The scraper provides various configuration options during initialization:
 | `seasons` | `false` | If `true`, fetches season data for TV shows. |
 | `credits` | `false` | If `true`, fetches detailed credits information. |
 | `guzzleLogFile` | `null` | File path for logging HTTP requests (useful for debugging). |
+| `proxy` | `null` | Proxy configuration for HTTP requests (see Proxy Configuration section). |
 
 ### Example: Setting Options
 
@@ -348,6 +350,48 @@ $imdb = Imdb::new(['locale' => 'it']);
 $movie = $imdb->movie('Pursuit Happyness');
 echo $movie->title;  // La ricerca della felicità
 ```
+
+### Proxy Configuration
+
+The scraper supports proxy configuration for HTTP requests. This is useful when you need to route requests through a proxy server.
+
+#### Simple HTTP Proxy
+
+```php
+$imdb = Imdb::new([
+    'proxy' => 'http://proxy.example.com:8080'
+]);
+```
+
+#### Proxy with Authentication
+
+```php
+$imdb = Imdb::new([
+    'proxy' => 'http://username:password@proxy.example.com:8080'
+]);
+```
+
+#### Different Proxies for HTTP/HTTPS
+
+```php
+$imdb = Imdb::new([
+    'proxy' => [
+        'http'  => 'http://proxy.example.com:8080',
+        'https' => 'http://proxy.example.com:8080',
+        'no' => ['.mit.edu', 'foo.com']  // Don't use proxy for these domains
+    ]
+]);
+```
+
+#### SOCKS Proxy
+
+```php
+$imdb = Imdb::new([
+    'proxy' => 'socks5://proxy.example.com:1080'
+]);
+```
+
+The proxy configuration is passed directly to Guzzle's HTTP client, so all Guzzle proxy formats are supported. See [Guzzle's proxy documentation](https://docs.guzzlephp.org/en/stable/request-options.html#proxy) for more details.
 
 - - -
 
