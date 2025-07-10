@@ -824,7 +824,7 @@ class Parser
 
                 // extract the IMDB ID from the link
                 $id = null;
-                if ($link && preg_match('/\/title\/(tt[0-9]{7,8})\//', $link, $matches)) {
+                if ($link && preg_match('/\/title\/(tt[0-9]{7,8})\//', $link,  $matches)) {
                     $id = $matches[1];
                 }
 
@@ -954,9 +954,42 @@ class Parser
         return trim(preg_replace('/\s\s+/', ' ', strip_tags($string)));
     }
 
+    /**
+     * Truncate string before "..." and back to the last complete sentence
+     *
+     * @param string $string
+     *
+     * @return string
+     */
     private static function truncateBeforeTruncate(string $string) : string
     {
+        // Find the position of "..." and remove everything from that point onwards
+        $ellipsisPos = strpos($string, '...');
+        if ($ellipsisPos !== false) {
+            $string = substr($string, 0, $ellipsisPos);
+        }
 
+        // Find the last complete sentence by looking for sentence-ending punctuation
+        // followed by a space or end of string
+        $lastSentenceEnd = 0;
+        $sentenceEnders = ['.', '!', '?'];
+        
+        for ($i = 0; $i < strlen($string); $i++) {
+            $char = $string[$i];
+            if (in_array($char, $sentenceEnders)) {
+                // Check if this is followed by a space or is at the end
+                if ($i === strlen($string) - 1 || $string[$i + 1] === ' ') {
+                    $lastSentenceEnd = $i + 1;
+                }
+            }
+        }
+
+        // If we found a sentence ending, truncate to that point
+        if ($lastSentenceEnd > 0) {
+            $string = substr($string, 0, $lastSentenceEnd);
+        }
+
+        return trim($string);
     }
 
     /**
