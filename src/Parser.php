@@ -954,6 +954,11 @@ class Parser
         return trim(preg_replace('/\s\s+/', ' ', strip_tags($string)));
     }
 
+    private static function truncateBeforeTruncate(string $string) : string
+    {
+
+    }
+
     /**
      * Absolutizes an IMDB URL, if it's relative
      *
