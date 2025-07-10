@@ -14,7 +14,7 @@ use Mfonte\ImdbScraper\Entities\Person;
 */
 class Parser
 {
-    private const SENTENCE_PUNCTUATION = ['?', '!', '...', '¿', '¡'];
+    private const SENTENCE_PUNCTUATION = ['?', '!', '...', '.'];
     /**
      * @var string|null The IMDB identifier
      */
