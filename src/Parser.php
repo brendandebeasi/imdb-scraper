@@ -14,6 +14,7 @@ use Mfonte\ImdbScraper\Entities\Person;
 */
 class Parser
 {
+    private const SENTENCE_PUNCTUATION = ['?', '!', '...', '¿', '¡'];
     /**
      * @var string|null The IMDB identifier
      */
@@ -515,7 +516,11 @@ class Parser
                 // use span[data-testid="plot-xl"] if available, else, use the first span
                 $plot = $plotContainer->findOneOrFalse('span[data-testid="plot-xl"]') ?? $plotContainer->findOneOrFalse('span');
                 if ($plot) {
-                    return self::clean($plot->innerText());
+                    return self::clean(
+                        self::truncateBeforeTruncate(
+                            $plot->innerText()
+                        )
+                    );
                 }
             }
         }
@@ -972,11 +977,10 @@ class Parser
         // Find the last complete sentence by looking for sentence-ending punctuation
         // followed by a space or end of string
         $lastSentenceEnd = 0;
-        $sentenceEnders = ['.', '!', '?'];
         
         for ($i = 0; $i < strlen($string); $i++) {
             $char = $string[$i];
-            if (in_array($char, $sentenceEnders)) {
+            if (in_array($char, self::SENTENCE_PUNCTUATION)) {
                 // Check if this is followed by a space or is at the end
                 if ($i === strlen($string) - 1 || $string[$i + 1] === ' ') {
                     $lastSentenceEnd = $i + 1;

@@ -6,3 +6,4 @@ cache/*
 .phpunit.test.log
 test.php
 src/Stale.php
+.aider*
