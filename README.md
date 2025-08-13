@@ -143,6 +143,7 @@ The `Title` object represents detailed information about a movie or TV show fetc
 | **`seasonRefs`** | `array` | A list of season numbers for a TV series (e.g., `[1, 2, 3, 4]`). |
 | **`seasons`** | `Dataset` | A dataset containing detailed information about seasons for a TV series. (`Season` objects) |
 | **`credits`** | `Dataset` | A dataset containing all credits associated with the title, including directors, writers, and producers. (`Credit` objects) |
+| **`awards`** | `array` | A list of awards and festival nominations/wins. Each entry contains festival name, ID, and award details including category, year, outcome, and recipients. |
 | **`metadata`** | `array` | Raw metadata associated with the title. |
 
 - - -
@@ -157,6 +158,7 @@ The scraper provides various configuration options during initialization:
 | `locale` | `en` | Sets the locale for searches (e.g., `it` for Italian). |
 | `seasons` | `false` | If `true`, fetches season data for TV shows. |
 | `credits` | `false` | If `true`, fetches detailed credits information. |
+| `awards` | `false` | If `true`, fetches awards and festival nominations/wins. |
 | `guzzleLogFile` | `null` | File path for logging HTTP requests (useful for debugging). |
 | `proxy` | `null` | Proxy configuration for HTTP requests (see Proxy Configuration section). |
 
@@ -174,6 +176,19 @@ $imdb = Imdb::new([
 // Fetch a localized movie
 $movie = $imdb->movie('La ricerca della felicità');
 echo $movie->title;  // La ricerca della felicità
+
+// Fetch movie with awards information
+$imdb = Imdb::new([
+    'awards' => true
+]);
+
+$movie = $imdb->movie('The Godfather');
+foreach ($movie->awards as $festival) {
+    echo "Festival: " . $festival['name'] . "\n";
+    foreach ($festival['awards'] as $award) {
+        echo "  - " . $award['category'] . " (" . $award['year'] . " " . $award['outcome'] . ")\n";
+    }
+}
 ```
 
 - - -

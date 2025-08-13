@@ -112,4 +112,9 @@ class Title extends Entity
      * @var array Raw metadata
      */
     public $metadata = [];
+
+    /**
+     * @var array List of awards and festivals
+     */
+    public $awards = [];
 }
