@@ -1,0 +1,130 @@
+#!/usr/bin/env php
+<?php
+
+require_once __DIR__ . '/vendor/autoload.php';
+
+use Mfonte\ImdbScraper\Imdb;
+
+// Simple argument parsing
+$input = $argv[1] ?? null;
+
+if (!$input || $input === '-h' || $input === '--help') {
+    echo "Usage: ./imdb-cli <imdb-id-or-url>\n";
+    echo "Example: ./imdb-cli tt0111161\n";
+    echo "Example: ./imdb-cli https://www.imdb.com/title/tt0111161/\n";
+    exit(0);
+}
+
+// Extract IMDb ID from URL if needed
+function extractImdbId($input) {
+    if (preg_match('/^tt\d{7,8}$/', $input)) {
+        return $input;
+    }
+    if (preg_match('/imdb\.com\/title\/(tt\d{7,8})/', $input, $matches)) {
+        return $matches[1];
+    }
+    return null;
+}
+
+$imdbId = extractImdbId($input);
+if (!$imdbId) {
+    echo "Error: Invalid IMDb ID or URL\n";
+    exit(1);
+}
+
+// Suppress deprecation warnings
+error_reporting(E_ERROR | E_PARSE);
+
+try {
+    // Create IMDb instance with all features enabled
+    $imdb = Imdb::new([
+        'seasons' => true,
+        'credits' => true,
+        'awards' => true,
+    ]);
+    
+    echo "Fetching data for: $imdbId\n";
+    $title = $imdb->id($imdbId);
+    
+    // Convert to array for print_r
+    $data = [
+        'id' => $title->id,
+        'isTvSeries' => $title->isTvSeries,
+        'link' => $title->link,
+        'title' => $title->title,
+        'originalTitle' => $title->originalTitle,
+        'year' => $title->year,
+        'length' => $title->length,
+        'rating' => $title->rating,
+        'ratingVotes' => $title->ratingVotes,
+        'popularityScore' => $title->popularityScore,
+        'metaScore' => $title->metaScore,
+        'genres' => $title->genres,
+        'posterUrl' => $title->posterUrl,
+        'trailerUrl' => $title->trailerUrl,
+        'plot' => $title->plot,
+        'actors' => [],
+        'similars' => [],
+        'seasons' => [],
+        'credits' => $title->credits,
+        'awards' => $title->awards,
+        'metadata' => $title->metadata,
+    ];
+    
+    // Convert actors dataset
+    if ($title->actors) {
+        foreach ($title->actors as $actor) {
+            $data['actors'][] = [
+                'id' => $actor->id ?? null,
+                'name' => $actor->name ?? null,
+                'character' => $actor->character ?? null,
+                'image' => $actor->image ?? null,
+                'link' => $actor->link ?? null,
+            ];
+        }
+    }
+    
+    // Convert similars dataset
+    if ($title->similars) {
+        foreach ($title->similars as $similar) {
+            $data['similars'][] = [
+                'id' => $similar->id ?? null,
+                'title' => $similar->title ?? null,
+                'link' => $similar->link ?? null,
+            ];
+        }
+    }
+    
+    // Convert seasons dataset
+    if ($title->seasons) {
+        foreach ($title->seasons as $season) {
+            $seasonData = [
+                'id' => $season->id ?? null,
+                'number' => $season->number ?? null,
+                'episodes' => []
+            ];
+            if (isset($season->episodes)) {
+                foreach ($season->episodes as $episode) {
+                    $seasonData['episodes'][] = [
+                        'id' => $episode->id ?? null,
+                        'number' => $episode->episodeNumber ?? null,
+                        'title' => $episode->title ?? null,
+                        'airDate' => $episode->airDate ?? null,
+                        'rating' => $episode->rating ?? null,
+                        'ratingVotes' => $episode->ratingVotes ?? null,
+                        'plot' => $episode->plot ?? null,
+                        'img' => $episode->img ?? null,
+                        'link' => $episode->link ?? null,
+                    ];
+                }
+            }
+            $data['seasons'][] = $seasonData;
+        }
+    }
+    
+    print_r($data);
+    
+} catch (Exception $e) {
+    echo "Error: " . $e->getMessage() . "\n";
+    exit(1);
+}

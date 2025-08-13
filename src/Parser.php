@@ -48,6 +48,7 @@ class Parser
         'seasonRefs' => [],
         'seasons' => [],
         'credits' => [],
+        'awards' => [],
     ];
 
     /**
@@ -136,6 +137,12 @@ class Parser
         if (array_key_exists('credits', $this->options) && $this->options['credits']) {
             $page = $dom->fetch("/title/{$this->id}/fullcredits", $this->options);
             $this->properties['credits'] = $this->getCredits($page);
+        }
+
+        // if the options tell us to fetch the awards, then do it
+        if (array_key_exists('awards', $this->options) && $this->options['awards']) {
+            $page = $dom->fetch("/title/{$this->id}/awards", $this->options);
+            $this->properties['awards'] = $this->getAwards($page);
         }
 
         return $this;
@@ -1089,5 +1096,138 @@ class Parser
         if (!preg_match('/^tt[0-9]{7,8}$/', $id)) {
             throw new \Exception("Mfonte\ImdbScraper\Parser:: Invalid IMDB identifier provided: $id. Must be in the form of 'tt1234567'");
         }
+    }
+
+    /**
+     * Get the awards and festival nominations/wins from the awards page
+     *
+     * @param HtmlDomParser $dom
+     *
+     * @return array
+     */
+    public function getAwards(HtmlDomParser $dom) : array
+    {
+        $awards = [];
+        
+        // First check if there's JSON-LD data with awards
+        $scripts = $dom->findMultiOrFalse('script[type="application/json"]');
+        if ($scripts) {
+            foreach ($scripts as $script) {
+                $jsonContent = $script->innerText();
+                if (strpos($jsonContent, '__NEXT_DATA__') !== false || strpos($jsonContent, 'categories') !== false) {
+                    $data = json_decode($jsonContent, true);
+                    if ($data && isset($data['props']['pageProps']['data']['categories'])) {
+                        $categories = $data['props']['pageProps']['data']['categories'];
+                        foreach ($categories as $category) {
+                                $festivalData = [
+                                'id' => $category['id'] ?? null,
+                                'name' => $category['name'] ?? null,
+                                'awards' => []
+                            ];
+                        
+                            if (isset($category['section']['items'])) {
+                                foreach ($category['section']['items'] as $item) {
+                                        $award = [
+                                        'category' => isset($item['listContent'][0]['text']) ? $item['listContent'][0]['text'] : null,
+                                        'year' => null,
+                                        'outcome' => null,
+                                        'recipients' => []
+                                        ];
+                                    
+                                    // Extract year and outcome from rowTitle/rowSubTitle
+                                    if (isset($item['rowTitle'])) {
+                                        if (preg_match('/(\d{4})\s*(Winner|Nominee)?/i', $item['rowTitle'], $matches)) {
+                                            $award['year'] = (int)$matches[1];
+                                            if (isset($matches[2])) {
+                                                $award['outcome'] = $matches[2];
+                                            }
+                                        }
+                                    }
+                                
+                                    if (isset($item['rowSubTitle'])) {
+                                        $award['description'] = $item['rowSubTitle'];
+                                    }
+                                
+                                    // Extract recipients
+                                    if (isset($item['subListContent'])) {
+                                        foreach ($item['subListContent'] as $recipient) {
+                                            $award['recipients'][] = [
+                                                'name' => $recipient['text'] ?? null,
+                                                'href' => $recipient['href'] ?? null
+                                            ];
+                                        }
+                                    }
+                                
+                                    $festivalData['awards'][] = $award;
+                                }
+                            }
+                            
+                            $awards[] = $festivalData;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // If no JSON data found, try parsing HTML structure
+        if (empty($awards)) {
+            $sections = $dom->findMultiOrFalse('section.ipc-page-section');
+            if ($sections) {
+                foreach ($sections as $section) {
+                    $titleElement = $section->findOneOrFalse('h3.ipc-title__text');
+                    if ($titleElement) {
+                        $festivalName = self::clean($titleElement->innerText());
+                        $festivalData = [
+                            'name' => $festivalName,
+                            'awards' => []
+                        ];
+                    
+                        $awardItems = $section->findMultiOrFalse('li.ipc-metadata-list-summary-item');
+                        if ($awardItems) {
+                            foreach ($awardItems as $item) {
+                                $categoryElement = $item->findOneOrFalse('.awardCategoryName');
+                                $titleLinkElement = $item->findOneOrFalse('a.ipc-metadata-list-summary-item__t');
+                        
+                                if ($categoryElement && $titleLinkElement) {
+                                    $award = [
+                                        'category' => self::clean($categoryElement->innerText()),
+                                        'year' => null,
+                                        'outcome' => null,
+                                        'recipients' => []
+                                    ];
+                            
+                                    $titleText = self::clean($titleLinkElement->innerText());
+                                    if (preg_match('/(\d{4})\s*(Winner|Nominee)?/i', $titleText, $matches)) {
+                                        $award['year'] = (int)$matches[1];
+                                        if (isset($matches[2])) {
+                                            $award['outcome'] = $matches[2];
+                                        }
+                                    }
+                            
+                                    // Get recipients
+                                    $recipientElements = $item->findMultiOrFalse('ul.ipc-metadata-list-summary-item__stl a');
+                                    if ($recipientElements) {
+                                        foreach ($recipientElements as $recipient) {
+                                            $award['recipients'][] = [
+                                                'name' => self::clean($recipient->innerText()),
+                                                'href' => self::absolutizeUrl($recipient->getAttribute('href'))
+                                            ];
+                                        }
+                                    }
+                                    
+                                    $festivalData['awards'][] = $award;
+                                }
+                            }
+                        }
+                        
+                        if (!empty($festivalData['awards'])) {
+                            $awards[] = $festivalData;
+                        }
+                    }
+                }
+            }
+        }
+        
+        return $awards;
     }
 }
