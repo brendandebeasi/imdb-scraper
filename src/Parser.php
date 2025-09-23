@@ -48,7 +48,7 @@ class Parser
         'seasonRefs' => [],
         'seasons' => [],
         'credits' => [],
-        'awards' => [],
+        'awards' => null,
     ];
 
     /**
@@ -66,13 +66,28 @@ class Parser
     }
 
     /**
-     * Constructor. Expects an IMDB identifier in the form of 'tt1234567'
+     * Parses a person profile from IMDB
+     *
+     * @param string $id - IMDB identifier in the form of 'nm1234567'
+     * @param array $options
+     *
+     * @return Parser
+     */
+    public static function parsePerson(string $id, array $options = []) : Parser
+    {
+        self::validatePersonId($id);
+
+        return (new self($id, $options))->runPersonParser();
+    }
+
+    /**
+     * Constructor. Expects an IMDB identifier in the form of 'tt1234567' or 'nm1234567'
      *
      * @param string $id
      */
     public function __construct(string $id, array $options = [])
     {
-        self::validateId($id);
+        // Don't validate here - let the specific parse methods validate
         $this->id = $id;
         $this->options = $options;
     }
@@ -474,12 +489,18 @@ class Parser
                 // first img.ipc-image has the poster
                 $poster = $posterContainer->findOneOrFalse('img.ipc-image');
                 if ($poster) {
-                    return self::absolutizeUrl($poster->getAttribute('src'));
+                    $posterUrl = $poster->getAttribute('src');
+                    return self::formatHighQualityPosterUrl($posterUrl);
                 }
             }
         }
 
-        return $this->getMetadataProp('image') ?? null;
+        $metaImage = $this->getMetadataProp('image');
+        if ($metaImage) {
+            return self::formatHighQualityPosterUrl($metaImage);
+        }
+
+        return null;
     }
 
     /**
@@ -554,7 +575,7 @@ class Parser
                     $actorElement = $element->findOneOrFalse('a[data-testid="title-cast-item__actor"]');
                     $characterElement = $element->findOneOrFalse('a[data-testid="cast-item-characters-link"]');
 
-                    $img = $imgElement ? self::absolutizeUrl($imgElement->getAttribute('src')) : null;
+                    $img = $imgElement ? self::formatHighQualityPosterUrl($imgElement->getAttribute('src')) : null;
                     $actor = $actorElement ? self::clean($actorElement->innerText()) : null;
                     $link = $actorElement ? self::absolutizeUrl($actorElement->getAttribute('href')) : null;
                     $character = $characterElement ? self::clean($characterElement->innerText()) : null;
@@ -703,7 +724,7 @@ class Parser
 
                 // Image
                 $imageElement = $entry->findOneOrFalse('img');
-                $image = $imageElement ? $imageElement->getAttribute('src') : null;
+                $image = $imageElement ? self::formatHighQualityPosterUrl($imageElement->getAttribute('src')) : null;
 
                 // Parse the Person as a character by default
                 $character = null;
@@ -812,13 +833,17 @@ class Parser
                 $plotElement = $container->findOneOrFalse('div.ipc-html-content.ipc-html-content--base.ipc-html-content--display-inline[role="presentation"]');
                 $ratingContainer = $container->findOneOrFalse('div[data-testid="ratingGroup--container"]');
 
-                $img = $imgElement ? self::absolutizeUrl($imgElement->getAttribute('src')) : null;
+                $img = $imgElement ? self::formatHighQualityPosterUrl($imgElement->getAttribute('src')) : null;
                 $title = $titleElement ? self::clean($titleElement->innerText()) : null;
                 $link = $linkElement ? self::absolutizeUrl($linkElement->getAttribute('href')) : null;
                 $airDate = $airDateElement ? self::normalizeToDate(self::clean($airDateElement->innerText())) : null;
                 $plot = $plotElement ? self::clean($plotElement->innerText()) : null;
-                $rating = $ratingContainer ? self::clean($ratingContainer->findOne('span.ipc-rating-star--rating')->innerText()) : null;
-                $ratingVotes = $ratingContainer ? self::normalizeToInt(self::clean($ratingContainer->findOne('span.ipc-rating-star--voteCount')->innerText())) : null;
+                // Fixed: use findOneOrFalse to prevent errors when elements don't exist
+                $ratingElement = $ratingContainer ? $ratingContainer->findOneOrFalse('span.ipc-rating-star--rating') : null;
+                $rating = $ratingElement ? self::clean($ratingElement->innerText()) : null;
+                
+                $votesElement = $ratingContainer ? $ratingContainer->findOneOrFalse('span.ipc-rating-star--voteCount') : null;
+                $ratingVotes = $votesElement ? self::normalizeToInt(self::clean($votesElement->innerText())) : null;
 
                 // match the season and episode number from the title (S8.E1 ∙ The Locomotion Interruption)
                 $seasonNumber = null;
@@ -1020,6 +1045,45 @@ class Parser
         $url = explode('?', $url)[0];
 
         return $url;
+    }
+
+    /**
+     * Format poster URL to get a high-quality version
+     * Extracts the image ID and formats it to the high-quality template
+     *
+     * @param string|null $url
+     *
+     * @return string|null
+     */
+    private static function formatHighQualityPosterUrl(?string $url) : ?string
+    {
+        if (empty($url)) {
+            return null;
+        }
+
+        // Extract the image ID from the URL
+        // Handle various formats:
+        // - With @ signs: MV5BOWJmYTNiMWUtMDUyYS00MjE4LWIzY2MtMzMxN2QxODU1ZDVmXkEyXkFqcGc@._V1_...
+        // - With @@ signs: MV5BMTc4MTAyNzMzNF5BMl5BanBnXkFtZTcwMzQ5MzQzMg@@._V1_...
+        // - Without @ signs: MV5BMTI2NTY0NzA4MF5BMl5BanBnXkFtZTYwMjE1MDE0._V1_...
+
+        // First try to match patterns with @ signs
+        if (preg_match('/\/(MV5[A-Za-z0-9]+)([@]+)(\.)?_V1/', $url, $matches)) {
+            $imageId = $matches[1];
+            $atSigns = $matches[2]; // Preserve the original number of @ signs
+            // Return high-quality format with preserved @ pattern
+            return "https://m.media-amazon.com/images/M/{$imageId}{$atSigns}._V1_FMjpg_QL100_.jpg";
+        }
+
+        // Then try patterns without @ signs (just ._V1)
+        if (preg_match('/\/(MV5[A-Za-z0-9]+)\._V1/', $url, $matches)) {
+            $imageId = $matches[1];
+            // For URLs without @, keep them without @ in the formatted URL
+            return "https://m.media-amazon.com/images/M/{$imageId}._V1_FMjpg_QL100_.jpg";
+        }
+
+        // If we can't extract the ID, return the absolutized original URL
+        return self::absolutizeUrl($url);
     }
 
     /**
@@ -1229,5 +1293,384 @@ class Parser
         }
         
         return $awards;
+    }
+
+    /**
+     * Run the parser against a person profile page
+     *
+     * @return Parser
+     */
+    public function runPersonParser() : Parser
+    {
+        $dom = new Dom;
+        $page = $dom->fetch("/name/{$this->id}/", $this->options);
+
+        // Parse person data
+        $this->properties = [
+            'id' => $this->id,
+            'link' => "https://www.imdb.com/name/{$this->id}/",
+            'name' => $this->getPersonName($page),
+            'image' => $this->getPersonImage($page),
+            'bio' => $this->getPersonBio($page),
+            'birthDate' => $this->getPersonBirthDate($page),
+            'birthPlace' => $this->getPersonBirthPlace($page),
+            'deathDate' => $this->getPersonDeathDate($page),
+            'professions' => $this->getPersonProfessions($page),
+            'knownFor' => $this->getPersonKnownFor($page),
+            'otherNames' => $this->getPersonOtherNames($page),
+        ];
+
+        return $this;
+    }
+
+    /**
+     * Convert properties to Person entity
+     *
+     * @return Person
+     */
+    public function toPerson() : Person
+    {
+        return Person::newFromArray($this->properties);
+    }
+
+    /**
+     * Get person's name
+     */
+    private function getPersonName(HtmlDomParser $dom) : string
+    {
+        $nameElement = $dom->findOneOrFalse('h1[data-testid="hero__pageTitle"] span');
+        if ($nameElement) {
+            return self::clean($nameElement->innerText());
+        }
+        return '';
+    }
+
+    /**
+     * Get person's image
+     */
+    private function getPersonImage(HtmlDomParser $dom) : ?string
+    {
+        // Look for hero section
+        $heroSection = $dom->findOneOrFalse('section[data-testid*="hero"]');
+        if (!$heroSection) {
+            $heroSection = $dom->findOneOrFalse('div[class*="Hero"]');
+        }
+        
+        if ($heroSection) {
+            // Find all images in hero section
+            $images = $heroSection->find('img.ipc-image');
+            
+            // Usually the first image is the profile photo
+            if (count($images) > 0) {
+                $firstImg = $images[0];
+                $src = $firstImg->getAttribute('src');
+                
+                // Make sure it's not a tiny icon (should have UX or be a reasonable size)
+                if ($src && (strpos($src, 'UX') !== false || strpos($src, 'UY') !== false || strpos($src, '_V1_') !== false)) {
+                    return self::formatHighQualityPosterUrl($src);
+                }
+            }
+            
+            // If first image didn't work, try others
+            foreach ($images as $img) {
+                $src = $img->getAttribute('src');
+                $alt = $img->getAttribute('alt');
+                
+                // Check if this looks like a person photo
+                if ($src && (strpos($src, 'UX140') !== false || strpos($src, 'UX280') !== false || strpos($src, 'UY207') !== false)) {
+                    return self::formatHighQualityPosterUrl($src);
+                }
+            }
+        }
+        
+        // Fallback: look for any image with class ipc-image that's substantial
+        $allImages = $dom->find('img.ipc-image');
+        foreach ($allImages as $img) {
+            $src = $img->getAttribute('src');
+            // Look for images with reasonable dimensions
+            if ($src && preg_match('/UX(\d+)/', $src, $matches)) {
+                $width = intval($matches[1]);
+                if ($width >= 140) {
+                    return self::formatHighQualityPosterUrl($src);
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Get person's biography
+     */
+    private function getPersonBio(HtmlDomParser $dom) : ?string
+    {
+        // Try multiple selectors for bio
+        $bioElement = $dom->findOneOrFalse('div[data-testid="bio-content"] div.ipc-html-content-inner-div');
+        if (!$bioElement) {
+            $bioElement = $dom->findOneOrFalse('section[data-testid="Storyline"] div.ipc-html-content-inner-div');
+        }
+        if (!$bioElement) {
+            // Try to find any bio section
+            $bioSection = $dom->findOneOrFalse('section:contains("Biography")');
+            if ($bioSection) {
+                $bioElement = $bioSection->findOneOrFalse('div.ipc-html-content-inner-div');
+            }
+        }
+        if ($bioElement) {
+            return self::clean($bioElement->innerText());
+        }
+        return null;
+    }
+
+    /**
+     * Get person's birth date
+     */
+    private function getPersonBirthDate(HtmlDomParser $dom) : ?string
+    {
+        // First try the hero area birth container
+        $birthElement = $dom->findOneOrFalse('div[data-testid="birth-and-death-birthdate"]');
+        if ($birthElement) {
+            // Extract text from spans
+            $spans = $birthElement->find('span');
+            foreach ($spans as $span) {
+                $text = trim($span->innerText());
+                // Look for date pattern
+                if (preg_match('/([A-Za-z]+ \d+, \d{4})/', $text, $matches)) {
+                    return $matches[1];
+                }
+            }
+        }
+        
+        // Try PersonalDetails section
+        $detailsSection = $dom->findOneOrFalse('section[data-testid="PersonalDetails"]');
+        if ($detailsSection) {
+            $listItems = $detailsSection->find('li');
+            foreach ($listItems as $li) {
+                $label = $li->findOneOrFalse('span.ipc-metadata-list-item__label');
+                if ($label && strpos($label->innerText(), 'Born') !== false) {
+                    $content = $li->findOneOrFalse('div.ipc-metadata-list-item__content-container');
+                    if ($content) {
+                        // Look for date links
+                        $monthDayLink = $content->findOneOrFalse('a[href*="birth_monthday"]');
+                        $yearLink = $content->findOneOrFalse('a[href*="birth_year"]');
+                        
+                        if ($monthDayLink && $yearLink) {
+                            $monthDay = trim($monthDayLink->innerText());
+                            $year = trim($yearLink->innerText());
+                            return $monthDay . ', ' . $year;
+                        }
+                    }
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Get person's birth place
+     */
+    private function getPersonBirthPlace(HtmlDomParser $dom) : ?string
+    {
+        // Try PersonalDetails section
+        $detailsSection = $dom->findOneOrFalse('section[data-testid="PersonalDetails"]');
+        if ($detailsSection) {
+            $listItems = $detailsSection->find('li');
+            foreach ($listItems as $li) {
+                $label = $li->findOneOrFalse('span.ipc-metadata-list-item__label');
+                if ($label && strpos($label->innerText(), 'Born') !== false) {
+                    $content = $li->findOneOrFalse('div.ipc-metadata-list-item__content-container');
+                    if ($content) {
+                        // Look for birth place link
+                        $placeLink = $content->findOneOrFalse('a[href*="birth_place"]');
+                        if ($placeLink) {
+                            return self::clean($placeLink->innerText());
+                        }
+                    }
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Get person's death date
+     */
+    private function getPersonDeathDate(HtmlDomParser $dom) : ?string
+    {
+        $deathElement = $dom->findOneOrFalse('div[data-testid="birth-and-death-deathdate"]');
+        if ($deathElement) {
+            $timeElement = $deathElement->findOneOrFalse('time');
+            if ($timeElement) {
+                return $timeElement->getAttribute('datetime');
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Get person's professions
+     */
+    private function getPersonProfessions(HtmlDomParser $dom) : array
+    {
+        $professions = [];
+        
+        // Look for navigation jump links that indicate professions
+        $navLists = $dom->find('ul.ipc-inline-list');
+        foreach ($navLists as $navList) {
+            $items = $navList->find('li a');
+            foreach ($items as $link) {
+                $href = $link->getAttribute('href');
+                $text = trim($link->innerText());
+                
+                // Check if this is a profession link
+                if (preg_match('/#(actor|actress|director|producer|writer|composer|soundtrack|cinematographer|editor)/', $href, $matches)) {
+                    if (!in_array($text, $professions) && $text && !is_numeric($text)) {
+                        $professions[] = $text;
+                    }
+                }
+            }
+        }
+        
+        // If no professions found, check the metadata
+        if (empty($professions)) {
+            $metaOccupation = $dom->findOneOrFalse('span[itemprop="jobTitle"]');
+            if ($metaOccupation) {
+                $text = self::clean($metaOccupation->innerText());
+                if ($text) {
+                    $professions = explode(',', $text);
+                    $professions = array_map('trim', $professions);
+                }
+            }
+        }
+        
+        return $professions;
+    }
+
+    /**
+     * Get person's known for (interests) - the main feature we're adding
+     */
+    private function getPersonKnownFor(HtmlDomParser $dom) : array
+    {
+        $knownFor = [];
+        
+        // Try the "Known For" section
+        $knownForSection = $dom->findOneOrFalse('div[data-testid="nm_flmg_kwn_for"]');
+        if (!$knownForSection) {
+            // Alternative selector
+            $knownForSection = $dom->findOneOrFalse('section[data-testid="Known For"]');
+        }
+        
+        if ($knownForSection) {
+            // Find all title links in the Known For section
+            $titleLinks = $knownForSection->find('a[href*="/title/"]');
+            $uniqueTitles = [];
+            
+            foreach ($titleLinks as $link) {
+                $href = $link->getAttribute('href');
+                if (preg_match('/\/title\/(tt\d+)/', $href, $matches)) {
+                    $titleId = $matches[1];
+                    
+                    // Skip duplicates
+                    if (isset($uniqueTitles[$titleId])) {
+                        continue;
+                    }
+                    
+                    // Get the aria-label which often contains the title
+                    $titleText = $link->getAttribute('aria-label');
+                    
+                    // If no aria-label, try to get text from link or parent
+                    if (!$titleText) {
+                        // Try to find parent poster div
+                        $parent = $link->parentNode();
+                        while ($parent && !strpos($parent->getAttribute('class'), 'ipc-poster')) {
+                            $parent = $parent->parentNode();
+                        }
+                        
+                        if ($parent) {
+                            // Look for title in various places
+                            $imgElement = $parent->findOneOrFalse('img');
+                            if ($imgElement) {
+                                $alt = $imgElement->getAttribute('alt');
+                                if ($alt) {
+                                    // Extract title from alt text like "Morgan Freeman in Se7en (1995)"
+                                    if (preg_match('/in\s+(.+?)\s*\(\d{4}\)/', $alt, $altMatches)) {
+                                        $titleText = $altMatches[1];
+                                    } else {
+                                        $titleText = $alt;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Extract year from various sources
+                    $year = null;
+                    if (preg_match('/\((\d{4})\)/', $titleText, $yearMatches)) {
+                        $year = $yearMatches[1];
+                        // Clean year from title
+                        $titleText = trim(preg_replace('/\s*\(\d{4}\)/', '', $titleText));
+                    }
+                    
+                    // Extract role if present
+                    $role = null;
+                    if (strpos($titleText, ' in ') !== false) {
+                        $parts = explode(' in ', $titleText);
+                        if (count($parts) > 1) {
+                            $role = trim($parts[0]);
+                            $titleText = trim($parts[1]);
+                        }
+                    }
+                    
+                    $uniqueTitles[$titleId] = [
+                        'id' => $titleId,
+                        'title' => self::clean($titleText),
+                        'year' => $year,
+                        'role' => $role,
+                        'link' => self::absolutizeUrl($href),
+                    ];
+                }
+            }
+            
+            $knownFor = array_values($uniqueTitles);
+        }
+        
+        return $knownFor;
+    }
+
+    /**
+     * Get person's other names/aliases
+     */
+    private function getPersonOtherNames(HtmlDomParser $dom) : array
+    {
+        $otherNames = [];
+        $detailsSection = $dom->findOneOrFalse('section[data-testid="Details"]');
+        if ($detailsSection) {
+            $items = $detailsSection->find('li[data-testid*="details"]');
+            foreach ($items as $item) {
+                $label = $item->findOneOrFalse('span');
+                if ($label && strpos(strtolower($label->innerText()), 'also known as') !== false) {
+                    $namesList = $item->find('li');
+                    foreach ($namesList as $nameItem) {
+                        $name = self::clean($nameItem->innerText());
+                        if ($name) {
+                            $otherNames[] = $name;
+                        }
+                    }
+                }
+            }
+        }
+        return $otherNames;
+    }
+
+    /**
+     * Validate person ID format
+     */
+    private static function validatePersonId(string $id) : void
+    {
+        if (!preg_match('/^nm\d{7,8}$/', $id)) {
+            throw new \InvalidArgumentException("Invalid person ID format: {$id}");
+        }
     }
 }

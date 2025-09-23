@@ -149,7 +149,9 @@ class Dom
 
         // in any other case, remove the leading two-chars locale from the URL, and prepend it with the chosen locale
         $uri = preg_replace('/^\/[a-z]{2}\//', '/', $uri);
-        return self::$baseUrl . $options['locale'] . '/' . ltrim($uri, '/');
+        // Fixed: Check if locale is set before using it to prevent warning
+        $locale = isset($options['locale']) ? $options['locale'] : '';
+        return self::$baseUrl . $locale . ($locale ? '/' : '') . ltrim($uri, '/');
     }
 
     /**

@@ -1,0 +1,31 @@
+{
+    "date": "2025-09-23 17:45:16",
+    "total": 23,
+    "passed": 23,
+    "percentage": 100,
+    "results": {
+        "The Shawshank Redemption": "pass",
+        "The Dark Knight": "pass",
+        "Interstellar": "pass",
+        "Awards - The Dark Knight": "pass",
+        "Awards - The Lord of the Rings": "pass",
+        "Breaking Bad - Basic": "pass",
+        "Breaking Bad - With Seasons": "pass",
+        "Game of Thrones - Basic": "pass",
+        "Friends - Season Detection": "pass",
+        "Morgan Freeman": "pass",
+        "Johnny Depp": "pass",
+        "Brad Pitt": "pass",
+        "Angelina Jolie": "pass",
+        "Search - The Matrix": "pass",
+        "Search - Breaking Bad": "pass",
+        "Search - Morgan Freeman": "pass",
+        "Invalid Movie ID": "pass",
+        "Invalid Person ID": "pass",
+        "Empty Search Query": "pass",
+        "Movie with minimal data": "pass",
+        "Person with minimal data": "pass",
+        "Plot truncation handling": "pass",
+        "Actor image URLs": "pass"
+    }
+}

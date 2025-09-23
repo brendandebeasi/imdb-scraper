@@ -41,4 +41,39 @@ class Person extends Entity
      * @var string The URL of the Person's image
      */
     public $image;
+    
+    /**
+     * @var string Biography/description of the person
+     */
+    public $bio;
+    
+    /**
+     * @var string Birth date
+     */
+    public $birthDate;
+    
+    /**
+     * @var string Birth place
+     */
+    public $birthPlace;
+    
+    /**
+     * @var string Death date (if applicable)
+     */
+    public $deathDate;
+    
+    /**
+     * @var array Known for / interests (titles the person is famous for)
+     */
+    public $knownFor;
+    
+    /**
+     * @var array Primary professions
+     */
+    public $professions;
+    
+    /**
+     * @var array Other names/aliases
+     */
+    public $otherNames;
 }

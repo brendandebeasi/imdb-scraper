@@ -114,7 +114,7 @@ class Title extends Entity
     public $metadata = [];
 
     /**
-     * @var array List of awards and festivals
+     * @var Dataset List of awards and festivals
      */
-    public $awards = [];
+    public $awards = null;
 }

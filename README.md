@@ -1,6 +1,6 @@
 # Mfonte IMDb Scraper
 
-A **PHP library** for scraping movie and TV show data from IMDb with ease. This package provides methods to retrieve detailed information about movies and TV shows using best matches or strict year-based queries, **with support for localized searches**.
+A **PHP library** for scraping movie, TV show, and person profile data from IMDb with ease. This package provides methods to retrieve detailed information about movies, TV shows, and people using best matches or strict year-based queries, **with support for localized searches, awards extraction, and comprehensive person profiles**.
 
 > [!CAUTION]
 > This package is intended for educational and personal use only. Users are responsible for ensuring their use complies with IMDb's Terms of Service and applicable laws. The author does not condone or encourage unauthorized scraping or other activities that violate legal agreements.
@@ -19,17 +19,30 @@ A **PHP library** for scraping movie and TV show data from IMDb with ease. This 
 
 - - -
 
+## Credits
+
+This project is maintained by **Maurizio Fonte** and is a comprehensive PHP library for IMDb data extraction. The library has been extensively enhanced with new features including:
+- Person profile extraction with biography, birth/death information, and known works
+- Awards and festival nominations/wins extraction with structured data models
+- Improved TV series episode data extraction
+- Enhanced data type consistency using Dataset collections
+- Comprehensive test coverage and debugging utilities
+
 ## Overview
 
 Mfonte IMDb Scraper is a lightweight, object-oriented library to interact with IMDb. It provides functionalities to:
 
 - Retrieve movie and TV show details by title and year, or IMDb ID, **with robust exception handling**, with support for **multiple locales**.
-- Fetch data like plot, actors, genres, ratings, and similar titles.
+- Fetch person profiles including biography, birth information, professions, and known works.
+- Extract awards and festival nominations/wins with detailed recipient information.
+- Fetch data like plot, actors, genres, ratings, similar titles, and full cast/crew credits.
 - Narrow results using "best match" algorithms or strict filters.
 
 Key features include:
 
 - **Localized searches** using the `locale` option.
+- **Person profiles** with comprehensive biographical data.
+- **Awards extraction** with structured festival and award data.
 - Built-in **caching** for optimized performance.
 - `v2` tag works from **PHP 8.1** onwards. `v1` tag Works from **PHP 7.3** to **PHP 8.0**.
 
@@ -37,22 +50,28 @@ Key features include:
 
 ## Table of Contents
 
+- [Credits](#credits)
 - [Installation](#installation)
 - [Usage](#usage)
   - [Basic Example](#basic-example)
   - [The `Title` Object](#the-title-object)
+  - [The `Person` Object](#the-person-object)
+  - [Awards and Festivals](#awards-and-festivals)
   - [Options](#options)
   - [Methods](#methods)
     - [Best Match Overview](#best-match-overview)
     - [By Year Overview](#by-year-overview)
+    - [Person Profiles](#person-profiles)
     - [Handling Exceptions](#handling-exceptions)
     - [The `id()` Method](#the-id-method)
+    - [The `person()` Method](#the-person-method)
     - [The `search()` Method](#the-search-method)
 - [Summary of Exceptions and Methods](#summary-of-exceptions-and-methods)
 - [Advanced Features](#advanced-features)
   - [Caching](#caching)
   - [Locale](#locale)
   - [Proxy Configuration](#proxy-configuration)
+- [Testing](#testing)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -143,8 +162,45 @@ The `Title` object represents detailed information about a movie or TV show fetc
 | **`seasonRefs`** | `array` | A list of season numbers for a TV series (e.g., `[1, 2, 3, 4]`). |
 | **`seasons`** | `Dataset` | A dataset containing detailed information about seasons for a TV series. (`Season` objects) |
 | **`credits`** | `Dataset` | A dataset containing all credits associated with the title, including directors, writers, and producers. (`Credit` objects) |
-| **`awards`** | `array` | A list of awards and festival nominations/wins. Each entry contains festival name, ID, and award details including category, year, outcome, and recipients. |
+| **`awards`** | `Dataset` | A dataset containing awards and festival information. Each `Festival` object contains the festival name and a Dataset of `Award` objects with category, year, outcome, and recipients. |
 | **`metadata`** | `array` | Raw metadata associated with the title. |
+
+### The `Person` Object
+
+The `Person` object represents detailed information about an actor, director, or other crew member. It includes comprehensive biographical data and filmography information.
+
+#### Properties of the `Person` Object
+
+| **Property** | **Type** | **Description** |
+| --- | --- | --- |
+| **`id`** | `string` | The unique IMDb ID of the person (e.g., `"nm0000151"`). |
+| **`name`** | `string` | The person's full name. |
+| **`link`** | `string` | The URL of the IMDb page for the person. |
+| **`image`** | `string\|null` | URL to the person's profile image. |
+| **`bio`** | `string\|null` | Biographical summary of the person. |
+| **`birthDate`** | `string\|null` | Date of birth (e.g., "June 1, 1937"). |
+| **`birthPlace`** | `string\|null` | Place of birth (e.g., "Memphis, Tennessee, USA"). |
+| **`deathDate`** | `string\|null` | Date of death if applicable. |
+| **`knownFor`** | `array` | List of titles the person is known for, each containing title, year, and ID. |
+| **`professions`** | `array` | List of professions (e.g., ["Actor", "Producer", "Director"]). |
+| **`otherNames`** | `array` | Alternative names or nicknames. |
+| **`character`** | `string\|null` | Character name (when Person is part of a cast list). |
+| **`type`** | `string` | Type of person (e.g., "actor", "director"). |
+
+### Awards and Festivals
+
+The awards data is structured using two entity classes:
+
+#### `Festival` Object
+- **`id`** - Festival identifier (if available)
+- **`name`** - Name of the festival or awards show
+- **`awards`** - Dataset of Award objects
+
+#### `Award` Object
+- **`category`** - Award category name
+- **`year`** - Year of the award
+- **`outcome`** - Result (e.g., "Winner", "Nominee")
+- **`recipients`** - Array of recipients with name and href
 
 - - -
 
@@ -184,10 +240,22 @@ $imdb = Imdb::new([
 
 $movie = $imdb->movie('The Godfather');
 foreach ($movie->awards as $festival) {
-    echo "Festival: " . $festival['name'] . "\n";
-    foreach ($festival['awards'] as $award) {
-        echo "  - " . $award['category'] . " (" . $award['year'] . " " . $award['outcome'] . ")\n";
+    echo "Festival: " . $festival->name . "\n";
+    foreach ($festival->awards as $award) {
+        echo "  - " . $award->category . " (" . $award->year . " " . $award->outcome . ")\n";
+        foreach ($award->recipients as $recipient) {
+            echo "      " . $recipient['name'] . "\n";
+        }
     }
+}
+
+// Fetch person profile
+$person = $imdb->person('nm0000151');  // Morgan Freeman
+echo $person->name . " was born on " . $person->birthDate . " in " . $person->birthPlace . "\n";
+echo "Known for: ";
+foreach ($person->knownFor as $i => $work) {
+    if ($i > 0) echo ", ";
+    echo $work['title'];
 }
 ```
 
@@ -310,6 +378,75 @@ echo $movie->year;   // 1994
 
 - - -
 
+## The `person()` Method
+
+The `person()` method allows you to fetch detailed biographical information about a person (actor, director, etc.) using their unique IMDb ID.
+
+```php
+use Mfonte\ImdbScraper\Imdb;
+
+$imdb = Imdb::new(['locale' => 'en']);
+
+$person = $imdb->person('nm0000151'); // Morgan Freeman's IMDb ID
+
+echo $person->name;        // Morgan Freeman
+echo $person->birthDate;   // June 1, 1937
+echo $person->birthPlace;  // Memphis, Tennessee, USA
+echo substr($person->bio, 0, 100); // First 100 chars of biography
+
+// Access known for titles
+foreach ($person->knownFor as $title) {
+    echo $title['title'] . " (" . $title['year'] . ")\n";
+}
+```
+
+**Key Features**:
+
+- Accepts only valid person IMDb IDs in the format `nm1234567` or `nm12345678`.
+- Returns comprehensive biographical data including birth/death information.
+- Includes filmography highlights in the `knownFor` field.
+- Throws a `BadMethodCall` exception if the input is invalid.
+
+- - -
+
+### Person Profiles
+
+Person profiles provide comprehensive information about actors, directors, and other film industry professionals:
+
+```php
+use Mfonte\ImdbScraper\Imdb;
+
+$imdb = Imdb::new();
+
+// Fetch a person's profile
+$person = $imdb->person('nm0001401'); // Angelina Jolie
+
+// Access biographical information
+echo "Name: " . $person->name . "\n";
+echo "Born: " . $person->birthDate . " in " . $person->birthPlace . "\n";
+echo "Biography: " . substr($person->bio, 0, 200) . "...\n";
+
+// Display professions
+echo "Professions: " . implode(", ", $person->professions) . "\n";
+
+// Show what they're known for
+echo "Known For:\n";
+foreach ($person->knownFor as $work) {
+    echo "  - " . $work['title'];
+    if ($work['year']) {
+        echo " (" . $work['year'] . ")";
+    }
+    echo " [" . $work['id'] . "]\n";
+}
+
+// Check if they have a profile image
+if ($person->image) {
+    echo "Profile Image: " . $person->image . "\n";
+}
+```
+
+- - -
+
 ## The `search()` Method
 
 The `search()` method performs a general search query and returns a `Dataset` containing `SearchResult` objects for all matches.
@@ -341,6 +478,7 @@ foreach ($results as $result) {
 | `movieByYear($title, $year)` | Fetches a movie by title and year. | `NoSearchResults`, `MultipleSearchResults` |
 | `tvSeriesByYear($title, $year)` | Fetches a TV series by title and year. | `NoSearchResults`, `MultipleSearchResults` |
 | `id($imdbId)` | Fetches a movie or TV show by IMDb ID (e.g., `tt1234567`). | `BadMethodCall` |
+| `person($personId)` | Fetches a person's profile by IMDb ID (e.g., `nm0000151`). | `BadMethodCall` |
 | `search($query)` | Performs a general search and returns a `Dataset` of `SearchResult` objects. | \-  |
 
 With these robust exception-handling mechanisms and versatile methods, the `Imdb` class offers both flexibility and reliability for your IMDb scraping needs.
@@ -407,6 +545,76 @@ $imdb = Imdb::new([
 ```
 
 The proxy configuration is passed directly to Guzzle's HTTP client, so all Guzzle proxy formats are supported. See [Guzzle's proxy documentation](https://docs.guzzlephp.org/en/stable/request-options.html#proxy) for more details.
+
+- - -
+
+## Testing
+
+The library includes comprehensive test scripts to verify functionality:
+
+### Test Scripts
+
+| **Script** | **Description** |
+| --- | --- |
+| `test-comprehensive.php` | Tests 5 movies, 5 TV series, and 5 person profiles |
+| `test-awards.php` | Tests awards and festival data extraction |
+| `test-actor-images.php` | Verifies person profile image extraction |
+| `test-final-demo.php` | Comprehensive feature demonstration |
+| `debug-episodes.php` | Debug tool for TV series episode extraction |
+| `debug-awards.php` | Debug tool for awards data structure |
+
+### Running Tests
+
+```bash
+# Run comprehensive test suite
+php test-comprehensive.php
+
+# Test awards functionality
+php test-awards.php
+
+# Test all features
+php test-final-demo.php
+```
+
+### Example Test Output
+
+```
+=== Testing Awards Schema ===
+
+Testing The Dark Knight (2008) (tt0468569)...
+------------------------------------------------------------
+✅ Awards loaded as Dataset
+  Total festivals: 102
+  First festival: Academy Awards, USA
+    Awards in festival: 5
+    First award:
+      Category: Best Performance by an Actor in a Supporting Role
+      Year: 2009
+      Outcome: Winner
+      Recipients: 1
+  ✅ JSON serialization works
+  ✅ JSON structure valid
+```
+
+### PHPUnit Tests
+
+Run the PHPUnit test suite:
+
+```bash
+composer test
+```
+
+### Debugging
+
+For debugging specific issues, use the debug scripts:
+
+```php
+// Debug episode extraction for a specific series
+php debug-episodes.php tt0903747  # Breaking Bad
+
+// Debug awards structure
+php debug-awards.php
+```
 
 - - -
 

@@ -7,6 +7,7 @@ use Mfonte\ImdbScraper\Exceptions\BadMethodCall;
 use Mfonte\ImdbScraper\Entities\Title;
 use Mfonte\ImdbScraper\Entities\Dataset;
 use Mfonte\ImdbScraper\Entities\SearchResult;
+use Mfonte\ImdbScraper\Entities\Person;
 
 /**
 * Class Imdb
@@ -107,6 +108,37 @@ class Imdb
     {
         $imdbId = $this->narrow($title, 'tvSeries', false, $year);
         return $this->id($imdbId);
+    }
+
+    /**
+     * Gets a Person data from IMDB, based on its identifier.
+     *
+     * @param string $personId - The IMDB ID of the person (e.g., 'nm0000151')
+     *
+     * @return Person
+     */
+    public function person(string $personId) : Person
+    {
+        // throw an exception if the IMDB ID is not valid
+        if (!preg_match('/^nm\d{7,8}$/', $personId)) {
+            throw new BadMethodCall("Mfonte\ImdbScraper\Imdb::person() - Invalid person ID: {$personId}");
+        }
+
+        // early return from cache, if the cache is enabled
+        if ($this->cache && $this->cache->has($personId)) {
+            return $this->cache->get($personId);
+        }
+
+        // run the parser against this person ID
+        $parser = Parser::parsePerson($personId, $this->options);
+        $person = $parser->toPerson();
+
+        // set the person in cache, if the cache is enabled
+        if ($this->cache) {
+            $this->cache->add($personId, $person);
+        }
+
+        return $person;
     }
 
     /**
