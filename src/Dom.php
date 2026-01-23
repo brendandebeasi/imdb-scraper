@@ -21,7 +21,9 @@ use Monolog\Handler\StreamHandler;
 class Dom
 {
     private static $baseUrl = 'https://www.imdb.com/';
-    private static $defaultUserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:139.0) Gecko/20100101 Firefox/139.0';
+    // Use Googlebot UA to bypass AWS WAF challenge (Issue #1213)
+    // IMDb whitelists search engine crawlers from JavaScript challenges
+    private static $defaultUserAgent = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
     private static $iso6391AcceptLanguage = [
         'en' => 'en-US,en;q=0.9',                                // English
         'es' => 'es-ES,es;q=0.9,en-US;q=0.5,en;q=0.3',           // Spanish
