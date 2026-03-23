@@ -50,34 +50,14 @@ function parseArgs(array $argv): array {
 // Parse arguments
 $args = parseArgs($argv);
 
-// Show help if requested or no query provided
-if ($args['help'] || $args['query'] === null) {
-    echo "Usage:\n";
-    echo "  ./imdb-cli <imdb-id-or-url>           Fetch full details by IMDB ID or URL\n";
-    echo "  ./imdb-cli <search-query> [options]   Search for titles by name\n";
-    echo "\n";
-    echo "Search Options:\n";
-    echo "  --type <movie|tv>   Filter results by type\n";
-    echo "  --year <YYYY>       Filter results by year\n";
-    echo "  --best              Auto-fetch full details for the best match\n";
-    echo "\n";
-    echo "Examples:\n";
-    echo "  ./imdb-cli tt0111161\n";
-    echo "  ./imdb-cli https://www.imdb.com/title/tt0111161/\n";
-    echo "  ./imdb-cli \"the godfather\"\n";
-    echo "  ./imdb-cli \"breaking bad\" --type tv\n";
-    echo "  ./imdb-cli \"inception\" --type movie --year 2010 --best\n";
-    exit(0);
-}
-
 // Suppress deprecation warnings
 error_reporting(E_ERROR | E_PARSE);
 
-// Try to extract IMDb ID
+// Try to extract IMDb ID FIRST — if valid, ignore all flags and go straight to ID-fetch mode
 $imdbId = extractImdbId($args['query']);
 
 if ($imdbId) {
-    // ID-FETCH MODE: Fetch full details by IMDb ID
+    // ID-FETCH MODE: Fetch full details by IMDb ID (ignore all flags)
     try {
         // Create IMDb instance with all features enabled
         $imdb = Imdb::new([
@@ -172,6 +152,26 @@ if ($imdbId) {
         exit(1);
     }
 } else {
+    // SEARCH/HELP MODE: Show help if requested or no query provided
+    if ($args['help'] || $args['query'] === null) {
+        echo "Usage:\n";
+        echo "  ./imdb-cli <imdb-id-or-url>           Fetch full details by IMDB ID or URL\n";
+        echo "  ./imdb-cli <search-query> [options]   Search for titles by name\n";
+        echo "\n";
+        echo "Search Options:\n";
+        echo "  --type <movie|tv>   Filter results by type\n";
+        echo "  --year <YYYY>       Filter results by year\n";
+        echo "  --best              Auto-fetch full details for the best match\n";
+        echo "\n";
+        echo "Examples:\n";
+        echo "  ./imdb-cli tt0111161\n";
+        echo "  ./imdb-cli https://www.imdb.com/title/tt0111161/\n";
+        echo "  ./imdb-cli \"the godfather\"\n";
+        echo "  ./imdb-cli \"breaking bad\" --type tv\n";
+        echo "  ./imdb-cli \"inception\" --type movie --year 2010 --best\n";
+        exit(0);
+    }
+    
     // SEARCH MODE: Search for titles by query
     try {
         // Validate --type flag
