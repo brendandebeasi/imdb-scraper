@@ -178,6 +178,46 @@ class Imdb
     }
 
     /**
+     * Finds IMDB titles with optional filtering by type (movie/tv) and year
+     *
+     * @param string $query
+     * @param string|null $type
+     * @param int|null $year
+     *
+     * @return Dataset<SearchResult>
+     */
+    public function find(string $query, ?string $type = null, ?int $year = null): Dataset
+    {
+        if ($type !== null && $type !== 'movie' && $type !== 'tv') {
+            throw new BadMethodCall("Mfonte\ImdbScraper\Imdb::find() - Invalid type: {$type}");
+        }
+
+        $results = $this->search($query);
+
+        $results = $results->filter(function ($result) {
+            return $result->id !== null;
+        });
+
+        if ($type === 'movie') {
+            $results = $results->filter(function ($result) {
+                return $result->isMovie();
+            });
+        } elseif ($type === 'tv') {
+            $results = $results->filter(function ($result) {
+                return $result->isTvSeries();
+            });
+        }
+
+        if ($year !== null) {
+            $results = $results->filter(function ($result) use ($year) {
+                return $result->year === $year;
+            });
+        }
+
+        return $results;
+    }
+
+    /**
      * Narrows the search to a specific category (movie or tvSeries), and optionally a year
      *
      * @param string $keyword
